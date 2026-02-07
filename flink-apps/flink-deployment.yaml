@@ -1,0 +1,85 @@
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: picklist-flow
+spec:
+  # image: harbor.local:30091/flink-cdc/flink-cdc-app:latest
+  image: harbor.local:30200/flink-cdc/flink-cdc-app:latest
+  flinkVersion: "v2_0"
+  
+  flinkConfiguration:    
+    # Checkpointing is here - As we can change settings without rebuilding the image
+    execution.checkpointing.interval: "60000"   
+    execution.checkpointing.mode: "EXACTLY_ONCE"
+    execution.checkpointing.min-pause: "30000"
+    
+    state.backend.type: rocksdb
+    state.checkpoints.dir: file:///opt/flink/checkpoints
+    state.savepoints.dir: file:///opt/flink/savepoints
+    
+    restart-strategy.type: exponential-delay
+    restart-strategy.exponential-delay.initial-backoff: "1s"
+    restart-strategy.exponential-delay.max-backoff: "60s"
+    rest.flamegraph.enabled: "true"
+
+  # Removing INFO from logs
+  logConfiguration:
+    "log4j-console.properties": |
+      rootLogger.level = WARN
+      rootLogger.appenderRef.console.ref = ConsoleAppender
+      appender.console.name = ConsoleAppender
+      appender.console.type = CONSOLE
+      appender.console.layout.type = PatternLayout
+      appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p %-60c %x - %m%n
+      
+      logger.flink.name = org.apache.flink
+      logger.flink.level = WARN
+      
+      logger.task.name = org.apache.flink.runtime.taskmanager.Task
+      logger.task.level = WARN
+      logger.taskexecutor.name = org.apache.flink.runtime.taskexecutor.TaskExecutor
+      logger.taskexecutor.level = WARN
+
+
+  # Gives pods an identity to interact with the Kubernetes API
+  # Flink Operator needs this because - 
+    # JobManager pod needs to create/manage TaskManager pods
+    # It needs permissions to watch pods, create ConfigMaps, Services, etc.
+  serviceAccount: flink
+
+  jobManager:
+    resource:
+      memory: "2048m"
+      cpu: 1
+    replicas: 1
+
+  taskManager:
+    resource:
+      memory: "2048m"
+      cpu: 1
+    replicas: 3
+
+  job:
+    jarURI: local:///opt/flink/usrlib/app.jar   # matches your Dockerfile COPY destination
+    entryClass: com.example.flink.Picklist_Flow # Main class of the Flink application
+    parallelism: 3                              # matches env.setParallelism(3)
+    # upgradeMode: savepoint
+    upgradeMode: stateless
+    state: running  # `suspended` to stop the job without deleting the deployment, `running` to start it
+
+  podTemplate:
+    spec:
+      imagePullSecrets:
+        - name: harbor-pull-secret              # the K8s secret you created in flink namespace
+      containers:
+        - name: flink-main-container
+          volumeMounts:
+            - name: checkpoints
+              mountPath: /opt/flink/checkpoints
+            - name: savepoints
+              mountPath: /opt/flink/savepoints
+      volumes:
+        - name: checkpoints
+          emptyDir: {}
+        - name: savepoints
+          emptyDir: {}

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flink-apps
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/SankalpBaliarsingh/My_K8S_Deployments.git  # UPDATE after pushing
+    targetRevision: main          # Branch to track (main)
+    path: flink-apps              # folder ArgoCD watches
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flink              # Namespace to deploy to (flink)
+
+  syncPolicy:
+    automated:                    # Auto-deploy on Git changes
+      prune: true                 # If you delete a YAML from Git, ArgoCD deletes it from cluster
+      selfHeal: true              # reverts manual cluster changes
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true      # recommended for CRDs like FlinkDeployment
