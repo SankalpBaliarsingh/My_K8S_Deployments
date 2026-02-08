@@ -4,7 +4,7 @@ metadata:
   name: picklist-flow
 spec:
   # image: harbor.local:30091/flink-cdc/flink-cdc-app:latest
-  image: harbor.local:30200/flink-cdc/flink-cdc-app:latest
+  image: harbor.local:30200/flink-cdc/flink-cdc-app:5
   flinkVersion: "v2_0"
   
   flinkConfiguration:    
